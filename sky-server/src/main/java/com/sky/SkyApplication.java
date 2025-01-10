@@ -1,8 +1,10 @@
 package com.sky;
 
+import com.sky.properties.AliOssProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
@@ -10,7 +12,10 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @Slf4j
 public class SkyApplication {
     public static void main(String[] args) {
-        SpringApplication.run(SkyApplication.class, args);
+        ApplicationContext context= SpringApplication.run(SkyApplication.class, args);
+        AliOssProperties aliOssProperties = context.getBean(AliOssProperties.class);
+        //aliOssProperties.printProperties();
         log.info("server started");
     }
 }
+ 
