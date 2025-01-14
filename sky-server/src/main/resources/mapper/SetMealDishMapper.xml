@@ -8,4 +8,12 @@ select setmeal_id from setmeal_dish where dish_id in
         #{dishId}
     </foreach>
     </select>
+
+    <insert id="batchSave">
+        insert into setmeal_dish(setmeal_id, name, dish_id, price, copies) VALUES
+        <foreach collection="dishList" item="dish" separator=",">
+            (#{dish.setmeal_id},#{dish.name},#{dish.dish_id},#{dish.price}, #{dish.copies})
+        </foreach>
+    </insert>
+
 </mapper>
