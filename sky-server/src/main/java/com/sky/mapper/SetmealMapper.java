@@ -1,12 +1,12 @@
 package com.sky.mapper;
 
+import com.github.pagehelper.Page;
 import com.sky.annotation.Autofill;
+import com.sky.dto.SetmealPageQueryDTO;
 import com.sky.entity.Setmeal;
 import com.sky.enumeration.OperationType;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Options;
-import org.apache.ibatis.annotations.Select;
+import com.sky.vo.SetmealVO;
+import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface SetmealMapper {
@@ -30,4 +30,16 @@ public interface SetmealMapper {
     @Autofill(value= OperationType.INSERT)
     void save(Setmeal setmeal);
 
+    //select s.*, d.name as dish_name from setmeal s left join setmeal_dish d on s.id=d.setmeal_id
+    //WHERE s.name LIKE 'hello%' AND s.category_id = ? and s.status=1;
+    Page<SetmealVO> queryPage(SetmealPageQueryDTO setmealPageQueryDTO);
+
+    @Select("select * from setmeal where id=#{id}")
+    Setmeal getById(Long id);
+
+    @Autofill(value=OperationType.UPDATE)
+    void update(Setmeal setmeal);
+
+
+    void deleteByIds(Long[] ids);
 }
