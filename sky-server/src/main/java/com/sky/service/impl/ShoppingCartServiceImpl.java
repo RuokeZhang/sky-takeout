@@ -62,4 +62,37 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
 
         }
     }
+    public List<ShoppingCart> showShoppingCart() {
+        Long userID=BaseContext.getCurrentId();
+        ShoppingCart shoppingCart = ShoppingCart.builder().userId(userID).build();
+        List<ShoppingCart> list = shoppingCartMapper.list(shoppingCart);
+        return list;
+    }
+    public void cleanShoppingCart(){
+        Long userId=BaseContext.getCurrentId();
+        shoppingCartMapper.deleteByUserId(userId);
+    }
+
+    public void subFromShoppingCart(ShoppingCartDTO shoppingCartDTO){
+        //if this item's number is 1, delete it from the database
+        Long userId=BaseContext.getCurrentId();
+        ShoppingCart shoppingCart = ShoppingCart.builder()
+                .userId(userId)
+                .dishId(shoppingCartDTO.getDishId())
+                .dishFlavor(shoppingCartDTO.getDishFlavor())
+                .setmealId(shoppingCartDTO.getSetmealId())
+                .build();
+        List<ShoppingCart> list=shoppingCartMapper.list(shoppingCart);
+        if(list!=null&&list.size()>0){
+            shoppingCart=list.get(0);
+            if(shoppingCart.getNumber()==1){
+                //remove this item
+                shoppingCartMapper.remove(shoppingCart);
+            }else{
+                shoppingCart.setNumber(shoppingCart.getNumber()-1);
+                shoppingCartMapper.updateNumberById(shoppingCart);
+            }
+        }
+    }
 }
+
