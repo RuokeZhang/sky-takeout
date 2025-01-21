@@ -51,6 +51,37 @@ Import jjwt-0.9.1.jar in the project, then use Jwts.builder() to create a JWT to
 # Interceptor
 TODO
 
+# Query Page
+
+## Controller Layer
+Return type: `Result<PageResult>`
+
+    public class PageResult implements Serializable {  
+	    private long total; 
+		private List records; //当前页数据集合  
+	}
+
+## Service Layer
+Return type: PageResult
+Use `PageHelper.startPage(int pageNum, int pageSize)`
+PageHelper will intercept the SQL query, add `LIMIT` and `OFFSET` to it.
+
+    Page<DishVO> page=dishMapper.pageQuery(dishPageQueryDTO);
+    //returned page
+    {
+	  "pageNum": 1,
+	  "pageSize": 10,
+	  "total": 100,
+	  "pages": 10,
+	  "result": [
+	    { "id": 1, "name": "Dish 1", "price": 10.99 },
+	    { "id": 2, "name": "Dish 2", "price": 12.99 },
+	    { "id": 3, "name": "Dish 3", "price": 9.99 }
+	  ]
+	}
+Then, return a PageResult
+
+    return new PageResult(page.getTotal(), page.getResult();
 # AutoFill
 Once we update some information in the database, we leave a timestamp. And this feature is shared by all the insertion and update operations.
 
@@ -142,3 +173,48 @@ It's realized by AOP and Proxy.
 	    return userMapper.getById(id);
 	}
 
+# WeChat Pay
+![WeChat Pay Process](./assets/WeChatPay.jpg)
+This is a simplified version, where we only consider successful payment. For a detailed payment process, refer to this [Official Docs](https://pay.weixin.qq.com/doc/v3/merchant/4012791911)
+
+
+“微信支付下单”（Step 4)和“支付”（Step 10）是两次独立的请求
+
+Step 5: [JSAPI](https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_1_1.shtml)
+We pass user's openid, app_id, merchant_id to the wechat payment  service
+**notify_url:** It will be used in Step 13. When the payment completes, Wechat Server will notify our backend about the result.
+
+
+
+	{ 	"mchid": "1900006XXX", 
+		"out_trade_no": "1217752501201407033233368318", 
+		"appid": "wxdace645e0bc2cXXX", 
+		"description": "Image形象店-深圳腾大-QQ公仔", 
+		"notify_url": "https://www.weixin.qq.com/wxpay/pay.php", 
+		"amount": { "total": 1, "currency": "CNY" }, 
+		"payer": { "openid": "o4GgauInH_RCEdvrrNGrntXDuXXX" }
+	 }
+
+Step 6: ` { "prepay_id": "wx26112221580621e9b071c00d9e093b0000" }`
+We can get a prepay_id for this transaction.
+Step 7: backend sign the information, we can get nonceStr, paySign
+Step 8: Return the data to the frontend
+Step 10: The frontend calls wx.requestPayment() [docs](https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_5_4.shtml)
+This time, WeChat server will handle this payment
+
+	wx.requestPayment ( { 
+		"timeStamp": "1414561699", 
+		"nonceStr": "5K8264ILTKCH16CQ2502SI8ZNMTM67VS", //随机字符串
+		"package": "prepay_id=wx201410272009395522657a690389285100", 
+		"signType": "RSA", 
+		//签名，使用字段appId、timeStamp、nonceStr、package计算得出的签名值
+		"paySign": "oR9d8PuhnIc+YZ8cBHFCwfgpaK9gd7vaRvkYD7rthRAZ\/X+QBhcCYL21N7cHCTUxbQ+EAt6Uy+lwSN22f5YZvI45MLko8Pfso0jm46v5hqcVwrk6uddkGuT+Cdvu4WBqDzaDjnNa5UK3GfE1Wfl2gHxIIY5lLdUgWFts17D4WuolLLkiFZV+JSHMvH7eaLdT9N5GBovBwu5yYKUR7skR8Fu+LozcSqQixnlEZUfyE55feLOQTUYzLmR9pNtPbPsu6WVhbNHMS3Ss2+AehHvz+n64GDmXxbX++IOBvm2olHu3PsOUGRwhudhVf7UcGcunXt8cqNjKNqZLhLw4jq\/xDg==", 
+		"success":function(res){}, 
+		"fail":function(res){}, 
+		"complete":function(res){} 
+	} )
+
+Step13: WeChat Server sends a POST request back to the notify_url
+[callback function](https://pay.weixin.qq.com/doc/v3/partner/4012085801)
+
+    
