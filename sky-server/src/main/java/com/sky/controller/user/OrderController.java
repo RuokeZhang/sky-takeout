@@ -2,10 +2,12 @@ package com.sky.controller.user;
 
 import com.sky.dto.OrdersPaymentDTO;
 import com.sky.dto.OrdersSubmitDTO;
+import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.OrderService;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderSubmitVO;
+import com.sky.vo.OrderVO;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,5 +43,21 @@ public class OrderController {
         orderService.paySuccess(ordersPaymentDTO.getOrderNumber());
         return Result.success(orderPaymentVO);
     }
+
+    @GetMapping("/orderDetail/{id}")
+    public Result<OrderVO> getOrderById(@PathVariable Long id){
+        OrderVO orderVO= orderService.getOrderById(id);
+        return Result.success(orderVO);
+    }
+
+    @GetMapping("/historyOrders")
+    public Result<PageResult> getHistoryOrders(int page, int pageSize, Integer status){
+
+        PageResult pageResult=orderService.query(page, pageSize, status);
+        return Result.success(pageResult);
+
+    }
+
+
 
 }
