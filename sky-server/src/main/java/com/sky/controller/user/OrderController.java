@@ -57,7 +57,15 @@ public class OrderController {
         return Result.success(pageResult);
 
     }
-
-
+    @PutMapping("/cancel/{id}")
+    public Result cancel(@PathVariable Long id) throws Exception {
+        orderService.cancelOrder(id);
+        return Result.success();
+    }
+    @PostMapping("repetition/{id}")
+    public Result repetition(@PathVariable Long id) throws Exception {
+        orderService.repetition(id);
+        return Result.success();
+    }
 
 }

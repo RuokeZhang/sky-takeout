@@ -15,6 +15,7 @@ import com.sky.exception.ShoppingCartBusinessException;
 import com.sky.mapper.*;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
+import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
@@ -42,6 +43,8 @@ public class OrderServiceImpl implements OrderService {
     private AddressBookMapper addressBookMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private WeChatPayUtil weChatPayUtil;
 
     @Transactional
     public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) {
@@ -67,6 +70,7 @@ public class OrderServiceImpl implements OrderService {
         orders.setPayStatus(Orders.UN_PAID);
         orders.setStatus(Orders.PENDING_PAYMENT);
         orders.setNumber(String.valueOf(System.currentTimeMillis()));
+        orders.setAddress(addressBook.getCityName());
         orders.setConsignee(addressBook.getConsignee());
         orders.setUserId(userID);
         orders.setPhone(addressBook.getPhone());
@@ -156,6 +160,7 @@ public class OrderServiceImpl implements OrderService {
         if(orders==null){
             log.error("orders is null");
         }
+        //TODO: 配送地址为 null
         BeanUtils.copyProperties(orders, orderVO);
 
        //get order details
@@ -202,5 +207,61 @@ public class OrderServiceImpl implements OrderService {
         }
         return new PageResult(pageRes.getTotal(), orderVOList);
 
+    }
+
+    /**
+     * - 待支付和待接单状态下，用户可直接取消订单
+     * - 商家已接单状态下，用户取消订单需电话沟通商家
+     * - 派送中状态下，用户取消订单需电话沟通商家
+     * - 如果在待接单状态下取消订单，需要给用户退款
+     * - 取消订单后需要将订单状态修改为“已取消”
+     * */
+    public void cancelOrder(Long id) throws Exception {
+        //订单状态 1待付款 2待接单 3已接单 4派送中 5已完成 6已取消
+        //支付状态 0未支付 1已支付 2退款
+        Orders orders=orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if(orders.getStatus()>2){
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+
+        if(orders.getStatus()==Orders.TO_BE_CONFIRMED) {
+            //refund
+            /**weChatPayUtil.refund(
+                    orders.getNumber(), //商户订单号
+                    orders.getNumber(), //商户退款单号
+                    new BigDecimal(String.valueOf(orders.getAmount())),//退款金额，单位 元
+                    new BigDecimal(String.valueOf(orders.getAmount())));//原订单金额
+            */
+            //支付状态修改为 退款
+            orders.setPayStatus(Orders.REFUND);
+        }
+        //status =1 or 2, cancel
+        orders.setStatus(Orders.CANCELLED);
+        orders.setCancelReason("用户取消");
+        orders.setCancelTime(LocalDateTime.now());
+        orderMapper.update(orders);
+    }
+
+    @Override
+    //再来一单就是将原订单中的商品重新加入到购物车中
+    //TODO: optimize this function
+    public void repetition(Long id) {
+        //get the order
+        Orders orders = orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        //for every dish in that orders, create a shoppingCart and insert it into the table
+        for(OrderDetail orderDetail:orderDetailMapper.getListByOrderId(id)){
+            ShoppingCart shoppingCart=new ShoppingCart();
+            BeanUtils.copyProperties(orderDetail, shoppingCart);
+            shoppingCart.setUserId(orders.getUserId());
+            shoppingCart.setCreateTime(LocalDateTime.now());
+            shoppingCartMapper.insert(shoppingCart);
+        }
     }
 }
