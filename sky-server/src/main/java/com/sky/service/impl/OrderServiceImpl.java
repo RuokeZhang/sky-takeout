@@ -1,5 +1,7 @@
 package com.sky.service.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -13,6 +15,8 @@ import com.sky.exception.ShoppingCartBusinessException;
 import com.sky.mapper.*;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
+import com.sky.utils.BaiduMapUtil;
+import com.sky.utils.HttpClientUtil;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
@@ -28,7 +32,9 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -47,11 +53,14 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private WeChatPayUtil weChatPayUtil;
 
-    @Value("sky.shop.address")
+
+    @Value("${sky.shop.address}")
     private String shopAddress;
+    @Autowired
+    private BaiduMapUtil baiduMapUtil;
 
     @Transactional
-    public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) {
+    public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) throws Exception {
         //handle exceptions: address/shopping cart is null
         Long addressBookId = ordersSubmitDTO.getAddressBookId();
         AddressBook addressBook = addressBookMapper.getById(addressBookId);
@@ -109,9 +118,56 @@ public class OrderServiceImpl implements OrderService {
         return submitVO;
     }
 
-    private void checkDistance(String address) {
+    private void checkDistance(String address) throws Exception {
+        String clientLngLat=getCoordinate(address);
+        String shopLngLat=getCoordinate(shopAddress);
+
+        // route api
+        String apiUrl= baiduMapUtil.getRouteUrl(clientLngLat, shopLngLat);
+
+        //send an Http request
+        Map<String,String> paramMap=new LinkedHashMap<>();
+        String apiResponse= HttpClientUtil.doGet(apiUrl, paramMap);
+        //System.out.println(apiResponse);
+
+        JSONObject jsonObject = JSON.parseObject(apiResponse);
+        if(!jsonObject.getString("status").equals("0")){
+            throw new OrderBusinessException("配送路线规划失败");
+        }
+        //数据解析
+        JSONObject result = jsonObject.getJSONObject("result");
+        JSONArray jsonArray = (JSONArray) result.get("routes");
+        Integer distance = (Integer) ((JSONObject) jsonArray.get(0)).get("distance");
+        //System.out.println(distance);
+        if(distance > 50000){
+            //配送距离超过50000米
+            throw new OrderBusinessException("超出配送范围");
+        }
 
     }
+
+    private String getCoordinate(String address) throws Exception {
+
+        String destUrl=baiduMapUtil.getGeocodingUrl(address);
+
+        //send an Http request
+        Map<String,String> paramMap=new LinkedHashMap<>();
+        String apiResponse= HttpClientUtil.doGet(destUrl, paramMap);
+        //showLocation&&showLocation({"status":0,"result":{"location":{"lng":117.2080927529767,"lat":39.09110259843554},"precise":0,"confidence":20,"comprehension":100,"level":"城市"}})
+        String jsonString=BaiduMapUtil.parseResponse(apiResponse);
+
+        //parse json
+        JSONObject jsonObject = JSONObject.parseObject(jsonString);
+
+        //{"result":{"level":"城市","confidence":20,"location":{"lng":117.2080927529767,"lat":39.09110259843554},"precise":0,"comprehension":100},"status":0}
+        JSONObject result = jsonObject.getJSONObject("result");
+        JSONObject location = result.getJSONObject("location");
+
+        double lng = location.getDouble("lng");
+        double lat = location.getDouble("lat");
+        return lat + "," + lng;
+    }
+
 
     /**
      * 订单支付
@@ -152,7 +208,6 @@ public class OrderServiceImpl implements OrderService {
 
         // 根据订单号查询订单
         Orders ordersDB = orderMapper.getByNumber(outTradeNo);
-        System.out.println("ordersDB:" + ordersDB);
         // 根据订单id更新订单的状态、支付方式、支付状态、结账时间
         Orders orders = Orders.builder()
                 .id(ordersDB.getId())

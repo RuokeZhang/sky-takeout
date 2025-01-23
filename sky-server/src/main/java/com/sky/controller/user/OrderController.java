@@ -21,7 +21,7 @@ public class OrderController {
     private OrderService orderService;
 
     @PostMapping("/submit")
-    public Result<OrderSubmitVO> submit(@RequestBody OrdersSubmitDTO ordersSubmitDTO){
+    public Result<OrderSubmitVO> submit(@RequestBody OrdersSubmitDTO ordersSubmitDTO) throws Exception {
         log.info("ordersSubmitDTO:{}",ordersSubmitDTO);
         OrderSubmitVO orderSubmitVO= orderService.submitOrder(ordersSubmitDTO);
         log.info("orderSubmitVO:{}",orderSubmitVO);

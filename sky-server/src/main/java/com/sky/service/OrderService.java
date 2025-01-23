@@ -7,8 +7,10 @@ import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
 
+import java.io.UnsupportedEncodingException;
+
 public interface OrderService {
-    OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO);
+    OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) throws Exception;
 
     OrderPaymentVO payment(OrdersPaymentDTO ordersPaymentDTO);
     void paySuccess(String outTradeNo);
