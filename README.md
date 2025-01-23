@@ -217,4 +217,16 @@ This time, WeChat server will handle this payment
 Step13: WeChat Server sends a POST request back to the notify_url
 [callback function](https://pay.weixin.qq.com/doc/v3/partner/4012085801)
 
-    
+
+
+# Baidu Map Api
+
+## API
+
+[GetEncodedAddress](https://lbsyun.baidu.com/faq/api?title=webapi/guide/webservice-geocoding-base)
+
+[GetRoute](https://lbs.baidu.com/faq/api?title=webapi/guide/webservice-lwrouteplanapi/dirve#%E5%9C%A8%E7%BA%BF%E8%BF%90%E8%A1%8C)
+## Secure Number verification
+Include an SN string in the request as a Query Param to validate this request, in case the request being modified by others.
+[SN computing method](https://lbsyun.baidu.com/faq/api?title=lbscloud/api/appendix#sn%E8%AE%A1%E7%AE%97%E7%AE%97%E6%B3%95)
+
