@@ -5,9 +5,7 @@ import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.sky.constant.MessageConstant;
 import com.sky.context.BaseContext;
-import com.sky.dto.OrdersPageQueryDTO;
-import com.sky.dto.OrdersPaymentDTO;
-import com.sky.dto.OrdersSubmitDTO;
+import com.sky.dto.*;
 import com.sky.entity.*;
 import com.sky.exception.AddressBookBusinessException;
 import com.sky.exception.OrderBusinessException;
@@ -17,13 +15,16 @@ import com.sky.result.PageResult;
 import com.sky.service.OrderService;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
+import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -46,6 +47,9 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private WeChatPayUtil weChatPayUtil;
 
+    @Value("sky.shop.address")
+    private String shopAddress;
+
     @Transactional
     public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) {
         //handle exceptions: address/shopping cart is null
@@ -62,6 +66,9 @@ public class OrderServiceImpl implements OrderService {
             throw new ShoppingCartBusinessException(MessageConstant.SHOPPING_CART_IS_NULL);
         }
 
+        //check the distance!!!
+        checkDistance(addressBook.getProvinceName()+addressBook.getCityName()+addressBook.getDetail());
+
         OrderSubmitVO orderSubmitVO = new OrderSubmitVO();
         //insert one row into the order table
         Orders orders = new Orders();
@@ -70,9 +77,11 @@ public class OrderServiceImpl implements OrderService {
         orders.setPayStatus(Orders.UN_PAID);
         orders.setStatus(Orders.PENDING_PAYMENT);
         orders.setNumber(String.valueOf(System.currentTimeMillis()));
-        orders.setAddress(addressBook.getCityName());
+        orders.setAddress(addressBook.getDetail());
         orders.setConsignee(addressBook.getConsignee());
         orders.setUserId(userID);
+        //TODO: set user name
+        //orders.setUserName();
         orders.setPhone(addressBook.getPhone());
 
         orderMapper.insert(orders);
@@ -98,6 +107,10 @@ public class OrderServiceImpl implements OrderService {
                 .orderNumber(orders.getNumber())
                 .build();
         return submitVO;
+    }
+
+    private void checkDistance(String address) {
+
     }
 
     /**
@@ -160,7 +173,7 @@ public class OrderServiceImpl implements OrderService {
         if(orders==null){
             log.error("orders is null");
         }
-        //TODO: 配送地址为 null
+
         BeanUtils.copyProperties(orders, orderVO);
 
        //get order details
@@ -263,5 +276,153 @@ public class OrderServiceImpl implements OrderService {
             shoppingCart.setCreateTime(LocalDateTime.now());
             shoppingCartMapper.insert(shoppingCart);
         }
+    }
+
+    @Override
+    public PageResult conditionSearch(OrdersPageQueryDTO ordersPageQueryDTO) {
+        PageHelper.startPage(ordersPageQueryDTO.getPage(), ordersPageQueryDTO.getPageSize());
+        Page<Orders> page=orderMapper.queryPage(ordersPageQueryDTO);
+
+        // 部分订单状态，需要额外返回订单菜品信息，将Orders转化为OrderVO
+        List<OrderVO> orderVOList = getOrderVOList(page);
+        return new PageResult(page.getTotal(), page.getResult());
+    }
+
+    @Override
+    public OrderStatisticsVO statistics() {
+        // 根据状态，分别查询出待接单、待派送、派送中的订单数量
+        Integer toBeConfirmed = orderMapper.countStatus(Orders.TO_BE_CONFIRMED);
+        Integer confirmed = orderMapper.countStatus(Orders.CONFIRMED);
+        Integer deliveryInProgress = orderMapper.countStatus(Orders.DELIVERY_IN_PROGRESS);
+
+        // 将查询出的数据封装到orderStatisticsVO中响应
+        OrderStatisticsVO orderStatisticsVO = new OrderStatisticsVO();
+        orderStatisticsVO.setToBeConfirmed(toBeConfirmed);
+        orderStatisticsVO.setConfirmed(confirmed);
+        orderStatisticsVO.setDeliveryInProgress(deliveryInProgress);
+        return orderStatisticsVO;
+    }
+
+    @Override
+    public void confirmOrder(OrdersConfirmDTO ordersConfirmDTO) {
+        //get the order
+        Orders orders=orderMapper.getById(ordersConfirmDTO.getId());
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if(orders.getStatus()==2){
+            orders.setStatus(Orders.CONFIRMED);
+            orderMapper.update(orders);
+        }else{
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+    }
+
+    @Override
+    public void rejectOrder(OrdersRejectionDTO ordersRejectionDTO) {
+        Long id=ordersRejectionDTO.getId();
+        String rejectReason=ordersRejectionDTO.getRejectionReason();
+        Orders orders=orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if(orders.getStatus()==2){
+            orders.setStatus(Orders.CANCELLED);
+            orders.setRejectionReason(rejectReason);
+            orderMapper.update(orders);
+        }else{
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        //支付状态
+        Integer payStatus = orders.getPayStatus();
+        if (payStatus == Orders.PAID) {
+            //用户已支付，需要退款
+            log.info("用户已经支付了，申请退款：{}");
+            orders.setPayStatus(Orders.REFUND);
+        }
+
+        orders.setCancelTime(LocalDateTime.now());
+        orderMapper.update(orders);
+    }
+
+    @Override
+    public void cancelOrder(OrdersCancelDTO ordersCancelDTO) {
+        Long id=ordersCancelDTO.getId();
+        String rejectReason=ordersCancelDTO.getCancelReason();
+        Orders orders=orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+
+        orders.setStatus(Orders.CANCELLED);
+        orders.setCancelReason(rejectReason);
+        orderMapper.update(orders);
+
+        //支付状态
+        Integer payStatus = orders.getPayStatus();
+        if (payStatus == Orders.PAID) {
+            //用户已支付，需要退款
+            log.info("用户已经支付了，申请退款：{}");
+            orders.setPayStatus(Orders.REFUND);
+        }
+
+        orders.setCancelTime(LocalDateTime.now());
+        orderMapper.update(orders);
+    }
+
+    @Override
+    public void delivery(Long id) {
+        Orders orders=orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if(orders.getStatus()==Orders.CONFIRMED){
+            orders.setStatus(Orders.DELIVERY_IN_PROGRESS);
+        }else{
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        orderMapper.update(orders);
+    }
+
+    @Override
+    public void complete(Long id) {
+        Orders orders=orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if(orders.getStatus()==Orders.DELIVERY_IN_PROGRESS){
+            orders.setStatus(Orders.COMPLETED);
+        }else{
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        orderMapper.update(orders);
+    }
+
+    private List<OrderVO> getOrderVOList(Page<Orders> page) {
+        List<OrderVO> orderVOList = new ArrayList<>();
+
+        List<Orders> ordersList = page.getResult();
+        if (!CollectionUtils.isEmpty(ordersList)) {
+            for (Orders orders : ordersList) {
+                // 将共同字段复制到OrderVO
+                OrderVO orderVO = new OrderVO();
+                BeanUtils.copyProperties(orders, orderVO);
+                String orderDishes = getOrderDishesStr(orders);
+
+                // 将订单菜品信息封装到orderVO中，并添加到orderVOList
+                orderVO.setOrderDishes(orderDishes);
+                orderVOList.add(orderVO);
+            }
+        }
+        return orderVOList;
+    }
+
+    private String getOrderDishesStr(Orders orders) {
+        List<OrderDetail> orderDetailList = orderDetailMapper.getListByOrderId(orders.getId());
+        StringBuilder res= new StringBuilder();
+        for (OrderDetail orderDetail : orderDetailList) {
+            res.append(orderDetail.getName());
+        }
+        return res.toString();
     }
 }
