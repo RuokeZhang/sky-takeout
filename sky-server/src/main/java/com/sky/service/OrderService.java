@@ -7,8 +7,6 @@ import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
 
-import java.io.UnsupportedEncodingException;
-
 public interface OrderService {
     OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) throws Exception;
 
@@ -36,4 +34,6 @@ public interface OrderService {
     void delivery(Long id);
 
     void complete(Long id);
+
+    void reminder(Long id);
 }

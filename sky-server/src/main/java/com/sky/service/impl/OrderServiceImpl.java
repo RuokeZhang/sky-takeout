@@ -447,6 +447,21 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.update(orders);
     }
 
+    @Override
+    public void reminder(Long id) {
+        Orders orders=orderMapper.getById(id);
+        if(orders==null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        //send a message to the admin's page through WebSocket
+        Map map=new HashMap();
+        map.put("type", 2);
+        map.put("orderId", id);
+        map.put("content", "orderNumber: "+orders.getNumber());
+        String json=JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
+    }
+
     private List<OrderVO> getOrderVOList(Page<Orders> page) {
         List<OrderVO> orderVOList = new ArrayList<>();
 

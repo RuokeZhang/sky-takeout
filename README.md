@@ -175,7 +175,7 @@ It's realized by AOP and Proxy.
 
 # WeChat Pay
 ![WeChat Pay Process](./assets/WeChatPay.jpg)
-This is a simplified version, where we only consider successful payment. For a detailed payment process, refer to this [Official Docs](https://pay.weixin.qq.com/doc/v3/merchant/4012791911)
+This is a **simplified** version, where we only consider successful payment. For a detailed payment process, refer to this [Official Docs](https://pay.weixin.qq.com/doc/v3/merchant/4012791911)
 
 
 “微信支付下单”（Step 4)和“支付”（Step 10）是两次独立的请求
@@ -221,12 +221,62 @@ Step13: WeChat Server sends a POST request back to the notify_url
 
 # Baidu Map Api
 
-## API
+### API
 
 [GetEncodedAddress](https://lbsyun.baidu.com/faq/api?title=webapi/guide/webservice-geocoding-base)
 
 [GetRoute](https://lbs.baidu.com/faq/api?title=webapi/guide/webservice-lwrouteplanapi/dirve#%E5%9C%A8%E7%BA%BF%E8%BF%90%E8%A1%8C)
-## Secure Number verification
+### Secure Number verification
 Include an SN string in the request as a Query Param to validate this request, in case the request being modified by others.
 [SN computing method](https://lbsyun.baidu.com/faq/api?title=lbscloud/api/appendix#sn%E8%AE%A1%E7%AE%97%E7%AE%97%E6%B3%95)
+
+# Spring Task
+An order can't be in status PENDING_PAYMENT or DELIVERY_IN_PROGRESS forever.
+
+**PENDING_PAYMENT:** We check the order's status every minute, if these status last for over 15 mins, we cancel it.
+**DELIVERY_IN_PROGRESS**: We check the orders on 1AM everyday. If still delivering, we mark it as COMPLETE.
+### CRON Expression
+[generator](https://www.freeformatter.com/cron-expression-generator-quartz.html)
+CRON is an expression for some time moments, used in scheduled task
+
+# WebSocket
+WebSocket is a long-lived TCP protocol, it's different from HTTP.
+![WebSocket vs HTTP](./assets/WebSocket.jpg)
+Even we didn't send a request to the server, the server can send message back to us.
+
+### Business Logic
+
+When the client pays successsfully, we will notify the shop as soon as possible. To achieve this
+1. we make the admin's page(client side) and the server be in a long-live connection.
+2. When the client pays, we push messages from the server to the admin's page, using WebSocket's API.
+3. Admin's page parse the messages from the server, check if it's **a Order Reminder**（来单提醒） or **Customer Expedite Request**(催单）
+
+### Establish Connection
+
+When we load the admin's home page, it's js function will send a handshake to the server.
+
+    ws://localhost:8080/ws/lkt7qx03rll (socketUrl)
+
+
+
+
+```
+@ServerEndpoint("/ws/{sid}")
+public class WebSocketServer {
+
+    // 存放会话对象
+    private static Map<String, Session> sessionMap = new HashMap<>();
+
+    /**
+     * 连接建立成功调用的方法
+     */
+    @OnOpen
+    public void onOpen(Session session, @PathParam("sid") String sid) {
+        System.out.println("客户端: " + sid + " 建立连接");
+        sessionMap.put(sid, session);
+    }
+}
+```
+{sid} is lkt7qx03rll, it's an identifier for the session.
+js defines a callback function: onOpen, when the connection establishes, server will put this session into the **sessionMap**.
 
