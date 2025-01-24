@@ -22,6 +22,7 @@ import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
+import com.sky.websocket.WebSocketServer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,10 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -52,6 +50,8 @@ public class OrderServiceImpl implements OrderService {
     private UserMapper userMapper;
     @Autowired
     private WeChatPayUtil weChatPayUtil;
+    @Autowired
+    private WebSocketServer webSocketServer;
 
 
     @Value("${sky.shop.address}")
@@ -217,6 +217,16 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         orderMapper.update(orders);
+
+        //send a message to admin's page through WebSocket
+        Map map=new HashMap<>();
+        map.put("type",1);//new order
+        map.put("orderId", orders.getId());
+        map.put("content", "order Number: "+outTradeNo);
+       String json= JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
+
+
     }
 
     @Override
@@ -237,23 +247,7 @@ public class OrderServiceImpl implements OrderService {
         return orderVO;
 
     }
-/**    private int page;
 
- private int pageSize;
-
- private String number;
-
- private  String phone;
-
- private Integer status;
-
- @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
- private LocalDateTime beginTime;
-
- @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
- private LocalDateTime endTime;
-
- private Long userId;**/
     public PageResult query(int page, int pageSize, Integer status) {
         PageHelper.startPage(page, pageSize);
         OrdersPageQueryDTO ordersPageQueryDTO = new OrdersPageQueryDTO();
