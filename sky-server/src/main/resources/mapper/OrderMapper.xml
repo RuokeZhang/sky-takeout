@@ -80,6 +80,38 @@
             </if>
         </where>
     </select>
+    <select id="getOrderNum" resultType="java.lang.Integer">
+        select count(id) from orders
+        <where>
+            <if test="begin!=null">
+                and order_time &gt; #{begin}
+            </if>
+            <if test="end!=null">
+                and order_time &lt; #{end}
+            </if>
+            <if test="status!=null">
+                and status=#{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="getTop10Dishes" resultType="com.sky.dto.GoodsSalesDTO">
+        select od.name, sum(od.number) as number
+        from order_detail od
+        join orders o on od.order_id = o.id
+        where o.status = 5
+        <if test="begin != null">
+            and o.order_time &gt; #{begin}
+        </if>
+        <if test="end != null">
+            and o.order_time &lt; #{end}
+        </if>
+        group by od.name
+        order by number desc
+        limit 0,10
+    </select>
+
+
 
 
 </mapper>
