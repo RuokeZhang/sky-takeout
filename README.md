@@ -280,3 +280,38 @@ public class WebSocketServer {
 {sid} is lkt7qx03rll, it's an identifier for the session.
 js defines a callback function: onOpen, when the connection establishes, server will put this session into the **sessionMap**.
 
+# Export Business Data as Excel
+
+### Excel Object Constructor
+Use **org.apache.poi.xssf.usermodel** to manipulate excel files.
+
+
+    InputStream in=this.getClass().getClassLoader().getResourceAsStream("template/运营数据报表模版");
+
+**[XSSFWorkbook](https://poi.apache.org/apidocs/5.0/org/apache/poi/xssf/usermodel/XSSFWorkbook.html#XSSFWorkbook-java.io.InputStream-)(java.io.InputStream in):** This constructor creates an Excel workbook object in memory based on the provided InputStream, which reads from the specified resource path ("template/运营数据报表模版").
+
+The reason we use this constructor is that using absolute paths in the filesystem would reduce the code's flexibility and maintainability, especially when deploying the application to different environments. Using a class loader avoids this issue because you only need to know the resource's location relative to the classpath.
+
+### Write Data to the Excel Object
+
+    XSSFSheet sheet= excel.getSheet("Sheet1");  
+	//填充时间  
+	sheet.getRow(1).getCell(1).setCellValue("Time"+beginDate+"至"+endDate);
+
+###  Return the Excel File to the Cilent
+We define the conrtoller as:
+
+	    @GetMapping("/export")  
+		public Result export(HttpServletResponse httpServletResponse){  
+		    reportService.exportBusinessData(httpServletResponse);  
+		    return Result.success();  
+		}
+This request has no request variable, and we get the httpServletResponse from Spring MVC.
+
+    //3. 通过输出流将Excel文件下载到客户端浏览器  
+	ServletOutputStream out = httpServletResponse.getOutputStream();  
+	excel.write(out);
+
+Then, in the servce, we create a ServletOutputStream object.
+[Interface ServletResponse](https://docs.oracle.com/javaee/6/api/javax/servlet/ServletResponse.html#getOutputStream%28%29)
+ServletOutputStream	getOutputStream(): Returns a `ServletOutputStream` suitable for writing binary data in the response.

@@ -49,4 +49,9 @@ public interface OrderMapper {
     Integer getOrderNum(Map map);
 
     List<GoodsSalesDTO> getTop10Dishes(LocalDateTime begin, LocalDateTime end);
+    /**
+     * 根据动态条件统计用户数量
+     * @param map
+     * @return
+     */
 }

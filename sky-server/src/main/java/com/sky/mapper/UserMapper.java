@@ -21,4 +21,6 @@ public interface UserMapper {
     Integer getNewUserNum(Map map);
 
     Integer getUserNumBefore(LocalDateTime beginTime);
+
+
 }
